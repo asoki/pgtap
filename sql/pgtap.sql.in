@@ -313,7 +313,7 @@ BEGIN
            || CASE aok WHEN TRUE THEN '' ELSE E'\n' ||
                 diag('Failed ' ||
                 CASE WHEN todo_why IS NULL THEN '' ELSE '(TODO) ' END ||
-                'test ' || test_num ||
+                'test ' || test_num::text ||
                 CASE descr WHEN '' THEN '' ELSE COALESCE(': "' || descr || '"', '') END ) ||
                 CASE WHEN aok IS NULL THEN E'\n' || diag('    (test result was NULL)') ELSE '' END
            END;
