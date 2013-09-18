@@ -70,7 +70,7 @@ BEGIN
 
     -- Save the plan and return.
     PERFORM _set('plan', $1 );
-    RETURN '1..' || $1;
+    RETURN '1..' || $1::text;
 END;
 $$ LANGUAGE plpgsql strict;
 
@@ -112,7 +112,7 @@ DECLARE
     ret integer;
 BEGIN
     EXECUTE 'SELECT MAX(id) FROM __tcache__ WHERE label = ' ||
-    quote_literal($1) || ' AND value = ' || $2 INTO ret;
+    quote_literal($1) || ' AND value = ' || $2::text INTO ret;
     RETURN ret;
 END;
 $$ LANGUAGE plpgsql strict;
@@ -132,7 +132,7 @@ RETURNS text AS $$
 DECLARE
     ret text;
 BEGIN
-    EXECUTE 'SELECT note FROM __tcache__ WHERE id = ' || $1 || ' LIMIT 1' INTO ret;
+    EXECUTE 'SELECT note FROM __tcache__ WHERE id = ' || $1::text || ' LIMIT 1' INTO ret;
     RETURN ret;
 END;
 $$ LANGUAGE plpgsql strict;
@@ -142,7 +142,7 @@ RETURNS integer AS $$
 DECLARE
     rcount integer;
 BEGIN
-    EXECUTE 'UPDATE __tcache__ SET value = ' || $2
+    EXECUTE 'UPDATE __tcache__ SET value = ' || $2::text
         || CASE WHEN $3 IS NULL THEN '' ELSE ', note = ' || quote_literal($3) END
         || ' WHERE label = ' || quote_literal($1);
     GET DIAGNOSTICS rcount = ROW_COUNT;
@@ -161,8 +161,8 @@ $$ LANGUAGE SQL;
 CREATE OR REPLACE FUNCTION _set ( integer, integer )
 RETURNS integer AS $$
 BEGIN
-    EXECUTE 'UPDATE __tcache__ SET value = ' || $2
-        || ' WHERE id = ' || $1;
+    EXECUTE 'UPDATE __tcache__ SET value = ' || $2::text
+        || ' WHERE id = ' || $1::text;
     RETURN $2;
 END;
 $$ LANGUAGE plpgsql;
@@ -171,7 +171,7 @@ CREATE OR REPLACE FUNCTION _add ( text, integer, text )
 RETURNS integer AS $$
 BEGIN
     EXECUTE 'INSERT INTO __tcache__ (label, value, note) values (' ||
-    quote_literal($1) || ', ' || $2 || ', ' || quote_literal(COALESCE($3, '')) || ')';
+    quote_literal($1) || ', ' || $2::text || ', ' || quote_literal(COALESCE($3, '')) || ')';
     RETURN $2;
 END;
 $$ LANGUAGE plpgsql;
@@ -185,8 +185,8 @@ CREATE OR REPLACE FUNCTION add_result ( bool, bool, text, text, text )
 RETURNS integer AS $$
 BEGIN
     EXECUTE 'INSERT INTO __tresults__ ( ok, aok, descr, type, reason )
-    VALUES( ' || $1 || ', '
-              || $2 || ', '
+    VALUES( ' || $1::text || ', '
+              || $2::text || ', '
               || quote_literal(COALESCE($3, '')) || ', '
               || quote_literal($4) || ', '
               || quote_literal($5) || ' )';
@@ -221,19 +221,19 @@ BEGIN
     IF exp_tests = 0 OR exp_tests IS NULL THEN
          -- No plan. Output one now.
         exp_tests = curr_test;
-        RETURN NEXT '1..' || exp_tests;
+        RETURN NEXT '1..' || exp_tests::text;
     END IF;
 
     IF curr_test <> exp_tests THEN
         RETURN NEXT diag(
-            'Looks like you planned ' || exp_tests || ' test' ||
-            plural || ' but ran ' || curr_test
+            'Looks like you planned ' || exp_tests::text || ' test' ||
+            plural || ' but ran ' || curr_test::text
         );
     ELSIF num_faild > 0 THEN
         RETURN NEXT diag(
-            'Looks like you failed ' || num_faild || ' test' ||
+            'Looks like you failed ' || num_faild::text || ' test' ||
             CASE num_faild WHEN 1 THEN '' ELSE 's' END
-            || ' of ' || exp_tests
+            || ' of ' || exp_tests::text
         );
     ELSE
 
@@ -307,7 +307,7 @@ BEGIN
     );
 
     RETURN (CASE aok WHEN TRUE THEN '' ELSE 'not ' END)
-           || 'ok ' || _set( 'curr_test', test_num )
+           || 'ok ' || _set( 'curr_test', test_num )::text
            || CASE descr WHEN '' THEN '' ELSE COALESCE( ' - ' || substr(diag( descr ), 3), '' ) END
            || COALESCE( ' ' || diag( 'TODO ' || todo_why ), '')
            || CASE aok WHEN TRUE THEN '' ELSE E'\n' ||
@@ -377,7 +377,7 @@ DECLARE
 BEGIN
     output := ok( result, descr );
     RETURN output || CASE result WHEN TRUE THEN '' ELSE E'\n' || diag(
-           '                  ' || COALESCE( quote_literal(got), 'NULL' ) ||
+           '                  ' || COALESCE( quote_literal(got::text), 'NULL' ) ||
        E'\n   doesn''t match: ' || COALESCE( quote_literal(rx), 'NULL' )
     ) END;
 END;
@@ -434,7 +434,7 @@ DECLARE
 BEGIN
     output := ok( result, descr );
     RETURN output || CASE result WHEN TRUE THEN '' ELSE E'\n' || diag(
-           '                  ' || COALESCE( quote_literal(got), 'NULL' ) ||
+           '                  ' || COALESCE( quote_literal(got::text), 'NULL' ) ||
         E'\n         matches: ' || COALESCE( quote_literal(rx), 'NULL' )
     ) END;
 END;
@@ -491,15 +491,15 @@ DECLARE
     output TEXT;
 BEGIN
     EXECUTE 'SELECT ' ||
-            COALESCE(quote_literal( have ), 'NULL') || '::' || pg_typeof(have) || ' '
+            COALESCE(quote_literal( have::text ), 'NULL') || '::' || pg_typeof(have) || ' '
             || op || ' ' ||
-            COALESCE(quote_literal( want ), 'NULL') || '::' || pg_typeof(want)
+            COALESCE(quote_literal( want::text ), 'NULL') || '::' || pg_typeof(want)
        INTO result;
     output := ok( COALESCE(result, FALSE), descr );
     RETURN output || CASE result WHEN TRUE THEN '' ELSE E'\n' || diag(
-           '    ' || COALESCE( quote_literal(have), 'NULL' ) ||
+           '    ' || COALESCE( quote_literal(have::text), 'NULL' ) ||
            E'\n        ' || op ||
-           E'\n    ' || COALESCE( quote_literal(want), 'NULL' )
+           E'\n    ' || COALESCE( quote_literal(want::text), 'NULL' )
     ) END;
 END;
 $$ LANGUAGE plpgsql;
@@ -596,7 +596,7 @@ BEGIN
     IF id IS NULL THEN
         RAISE EXCEPTION 'todo_end() called without todo_start()';
     END IF;
-    EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || id;
+    EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || id::text;
     RETURN;
 END;
 $$ LANGUAGE plpgsql;
@@ -617,7 +617,7 @@ BEGIN
     END IF;
     IF todos[2] = 0 THEN
         -- Todos depleted. Clean up.
-        EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || todos[1];
+        EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || todos[1]::text;
         RETURN NULL;
     END IF;
     -- Decrement the count of counted todos and return the reason.
@@ -628,7 +628,7 @@ BEGIN
 
     IF todos[2] = 1 THEN
         -- This was the last todo, so delete the record.
-        EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || todos[1];
+        EXECUTE 'DELETE FROM __tcache__ WHERE id = ' || todos[1]::text;
     END IF;
 
     RETURN note;
@@ -797,8 +797,8 @@ BEGIN
     act_time := extract( millisecond from timeofday()::timestamptz - starts_at::timestamptz);
     IF act_time < max_time THEN RETURN ok(TRUE, descr); END IF;
     RETURN ok( FALSE, descr ) || E'\n' || diag(
-           '      runtime: ' || act_time || ' ms' ||
-        E'\n      exceeds: ' || max_time || ' ms'
+           '      runtime: ' || act_time::text || ' ms' ||
+        E'\n      exceeds: ' || max_time::text || ' ms'
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -807,7 +807,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION performs_ok ( TEXT, NUMERIC )
 RETURNS TEXT AS $$
     SELECT performs_ok(
-        $1, $2, 'Should run in less than ' || $2 || ' ms'
+        $1, $2, 'Should run in less than ' || $2::text || ' ms'
     );
 $$ LANGUAGE sql;
 
@@ -1473,7 +1473,7 @@ BEGIN
 
     EXECUTE 'SELECT is('
              || COALESCE($1, 'NULL' || '::' || $2) || '::' || $2 || ', '
-             || COALESCE(quote_literal($3), 'NULL') || '::' || $2 || ', '
+             || COALESCE(quote_literal($3::text), 'NULL') || '::' || $2 || ', '
              || COALESCE(quote_literal($4), 'NULL')
     || ')' INTO thing;
     RETURN thing;
@@ -1552,7 +1552,7 @@ RETURNS TEXT AS $$
     SELECT col_default_is(
         $1, $2, $3,
         'Column ' || quote_ident($1) || '.' || quote_ident($2) || ' should default to '
-        || COALESCE( quote_literal($3), 'NULL')
+        || COALESCE( quote_literal($3::text), 'NULL')
     );
 $$ LANGUAGE sql;
 
@@ -5630,12 +5630,12 @@ BEGIN
     tnumb := currval('__tresults___numb_seq');
 
     -- Fetch the results.
-    EXECUTE 'SELECT aok, descr FROM __tresults__ WHERE numb = ' || tnumb
+    EXECUTE 'SELECT aok, descr FROM __tresults__ WHERE numb = ' || tnumb::text
        INTO aok, adescr;
 
     -- Now delete those results.
-    EXECUTE 'DELETE FROM __tresults__ WHERE numb = ' || tnumb;
-    EXECUTE 'ALTER SEQUENCE __tresults___numb_seq RESTART WITH ' || tnumb;
+    EXECUTE 'DELETE FROM __tresults__ WHERE numb = ' || tnumb::text;
+    EXECUTE 'ALTER SEQUENCE __tresults___numb_seq RESTART WITH ' || tnumb::text;
 
     -- Set up the description.
     descr := coalesce( name || ' ', 'Test ' ) || 'should ';
@@ -6308,7 +6308,7 @@ BEGIN
     WHILE have_found OR want_found LOOP
         IF have_rec IS DISTINCT FROM want_rec OR have_found <> want_found THEN
             RETURN ok( false, $3 ) || E'\n' || diag(
-                '    Results differ beginning at row ' || rownum || E':\n' ||
+                '    Results differ beginning at row ' || rownum::text || E':\n' ||
                 '        have: ' || CASE WHEN have_found THEN have_rec::text ELSE 'NULL' END || E'\n' ||
                 '        want: ' || CASE WHEN want_found THEN want_rec::text ELSE 'NULL' END
             );
